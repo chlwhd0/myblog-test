@@ -55,7 +55,7 @@
 </div>
 <script type="module">
 import {boot,login,db,fmtDate,el,$} from "/common.js";
-import {doc,getDoc,setDoc,deleteDoc,collection,getDocs,getCountFromServer,addDoc,query,orderBy,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import {doc,getDoc,setDoc,updateDoc,deleteDoc,collection,getDocs,getCountFromServer,addDoc,query,orderBy,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const id=new URLSearchParams(location.search).get("id");
 let post=null,ctx={user:null,owner:false},likeCount=0,liked=false;
@@ -208,11 +208,32 @@ function openReply(node,parentId,target){
   ta.setSelectionRange(ta.value.length,ta.value.length);
 }
 
+function openEdit(node,c,bodyEl){
+  if(openForm){openForm.remove();openForm=null}
+  const ta=el("textarea",{maxlength:"1000",required:""});ta.value=c.text||"";
+  const save=el("button",{type:"submit",class:"btn",text:"수정 저장"});
+  const form=el("form",{class:"rform",autocomplete:"off"},el("div",{class:"mwrap"},ta),
+    el("div",{class:"row"},save,el("button",{type:"button",class:"btn ghost",text:"취소",onclick:()=>{form.remove();bodyEl.hidden=false;openForm=null}})));
+  const m=attachMention(ta);
+  (c.mentions||[]).forEach(x=>m.add(x));
+  bodyEl.hidden=true;
+  form.addEventListener("submit",async e=>{
+    e.preventDefault();
+    const text=ta.value.trim();
+    if(!text)return;
+    save.disabled=true;setErr("cErr","");
+    try{await updateDoc(doc(db,"posts",id,"comments",c.id),{text,mentions:m.mentions(),editedAt:serverTimestamp()});await loadComments()}
+    catch(err){save.disabled=false;setErr("cErr","댓글을 수정하지 못했습니다. 잠시 뒤 다시 시도하세요.")}
+  });
+  node.appendChild(form);openForm=form;ta.focus();
+  ta.setSelectionRange(ta.value.length,ta.value.length);
+}
+
 function commentNode(c,parentId,canReply){
   const mine=!!ctx.user&&(c.mentions||[]).some(m=>m.uid===ctx.user.uid);
   const head=el("div",{class:"head"},el("b",{text:c.name||"익명"}),
     c.uid&&c.uid===post.authorUid?el("span",{class:"badge",text:"글쓴이"}):null,
-    el("span",{text:fmtDate(c.createdAt)}),
+    el("span",{text:fmtDate(c.createdAt)+(c.editedAt?" · 수정됨":"")}),
     mine?el("span",{class:"callme",text:"나를 호출했어요"}):null);
   if(ctx.user&&(ctx.owner||c.uid===ctx.user.uid)){
     const del=el("button",{type:"button",class:"del",text:"삭제"});
@@ -225,9 +246,10 @@ function commentNode(c,parentId,canReply){
   }
   const body=el("p");body.appendChild(renderText(c.text,c.mentions));
   const node=el("div",{class:"comment"+(mine?" me":""),id:"c-"+c.id},head,body);
-  if(ctx.user&&canReply){
-    node.appendChild(el("div",{class:"tools"},el("button",{type:"button",text:"답글",onclick:()=>openReply(node,parentId||c.id,c)})));
-  }
+  const tools=el("div",{class:"tools"});
+  if(ctx.user&&canReply)tools.appendChild(el("button",{type:"button",text:"답글",onclick:()=>openReply(node,parentId||c.id,c)}));
+  if(ctx.user&&c.uid===ctx.user.uid)tools.appendChild(el("button",{type:"button",text:"수정",onclick:()=>openEdit(node,c,body)}));
+  if(tools.childNodes.length)node.appendChild(tools);
   return node;
 }
 
