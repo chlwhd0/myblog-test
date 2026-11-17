@@ -99,7 +99,7 @@ footer{padding-block:0 40px;font-size:13px;color:var(--muted)}
     <a class="brand" href="#top"><i></i>PM 작업실</a>
     <nav class="hnav" aria-label="주 메뉴">
       <a class="opt" href="#projects">프로젝트</a>
-      <a class="lock" href="#private">
+      <a class="lock" href="/notes">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
         내 노트
       </a>
@@ -129,7 +129,6 @@ footer{padding-block:0 40px;font-size:13px;color:var(--muted)}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
           내 노트 열기
         </button>
-        <div class="msg" id="msg" role="status" hidden>로그인 기능은 블로그를 만들 때 연결합니다. 지금은 화면 시안입니다.</div>
       </div>
       <div class="ghost" aria-hidden="true"><div></div><div></div><div></div></div>
     </section>
@@ -139,7 +138,7 @@ footer{padding-block:0 40px;font-size:13px;color:var(--muted)}
 </div>
 
 <script>
-document.getElementById('open').addEventListener('click',function(){document.getElementById('msg').hidden=false});
+document.getElementById('open').addEventListener('click',function(){location.href='/notes'});
 
 /* 프로젝트는 최신순 배열. 3개까지만 보여주고, 더 있으면 더보기 링크를 켠다. */
 var PROJECTS=[

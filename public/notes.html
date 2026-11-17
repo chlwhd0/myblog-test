@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>내 노트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+:root{
+  --bg:#F2F2F0; --tile:#FFFFFF; --ink:#101012; --muted:#6A6B73; --line:#E3E3E0;
+  --hot:#FF5B24; --hot-ink:#FFFFFF; --dark:#141417; --dark-ink:#F3F3F5; --danger:#C62828;
+  --font-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0A0A0C; --tile:#16161A; --ink:#F3F3F5; --muted:#9A9BA6; --line:#26262C; --dark:#1E1E24; --danger:#FF8A80; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;word-break:keep-all;overflow-wrap:break-word;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--hot);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1000px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-block:22px}
+.brand{font-weight:900;font-size:19px;letter-spacing:-.03em;text-decoration:none;display:flex;align-items:center;gap:10px}
+.brand i{width:22px;height:22px;border-radius:7px;background:var(--hot);display:inline-block;transform:rotate(12deg)}
+.who{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.tile{background:var(--tile);border-radius:28px;padding:32px;margin-bottom:56px}
+h1{font-size:28px;letter-spacing:-.04em;margin:0 0 8px;font-weight:900}
+p.sub{margin:0 0 24px;color:var(--muted)}
+.btn{font:inherit;font-weight:700;font-size:14px;display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:999px;border:0;background:var(--ink);color:var(--bg);cursor:pointer}
+.btn.hot{background:var(--hot);color:var(--hot-ink)}
+.btn.ghost{background:var(--bg);color:var(--ink)}
+.btn.danger{background:transparent;color:var(--danger);padding-inline:12px}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:hover:not(:disabled){opacity:.88}
+.err{margin-top:16px;color:var(--danger);font-size:14px}
+.layout{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:24px}
+.list{display:flex;flex-direction:column;gap:6px;margin:16px 0 0;padding:0;list-style:none}
+.list button{font:inherit;text-align:left;width:100%;padding:12px 14px;border:0;border-radius:14px;background:var(--bg);color:var(--ink);cursor:pointer}
+.list button[aria-current="true"]{background:var(--ink);color:var(--bg)}
+.list b{display:block;font-weight:500;font-size:15px;line-height:1.4}
+.list small{opacity:.65;font-size:12px}
+.empty{color:var(--muted);font-size:14px;margin-top:16px}
+label{display:block;font-size:13px;font-weight:500;color:var(--muted);margin:0 0 6px}
+input[type=text],textarea{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+textarea{min-height:320px;resize:vertical;line-height:1.7}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px}
+.row .grow{flex:1}
+.status{font-size:13px;color:var(--muted)}
+@media (max-width:760px){.layout{grid-template-columns:1fr}.tile{padding:24px;border-radius:22px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="/"><i></i>PM 작업실</a>
+    <div class="who" id="who" hidden>
+      <span id="whoName"></span>
+      <button class="btn ghost" type="button" id="logout">로그아웃</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="tile" id="loading"><p class="sub" style="margin:0">확인하는 중입니다…</p></section>
+
+    <section class="tile" id="login" hidden>
+      <h1>내 노트</h1>
+      <p class="sub">회고는 본인만 읽을 수 있습니다. 구글 계정으로 로그인하세요.</p>
+      <button class="btn hot" type="button" id="loginBtn">구글 계정으로 로그인</button>
+      <div class="err" id="loginErr" role="alert" hidden></div>
+    </section>
+
+    <section class="tile" id="denied" hidden>
+      <h1>접근할 수 없습니다</h1>
+      <p class="sub">이 계정은 내 노트를 볼 수 있는 계정이 아닙니다. 로그아웃한 뒤 다른 계정으로 로그인하세요.</p>
+    </section>
+
+    <section class="tile" id="app" hidden>
+      <div class="layout">
+        <div>
+          <button class="btn hot" type="button" id="newBtn">새 회고 쓰기</button>
+          <ul class="list" id="list"></ul>
+          <p class="empty" id="empty" hidden>아직 쓴 회고가 없습니다.</p>
+        </div>
+        <form id="form" autocomplete="off">
+          <label for="title">제목</label>
+          <input type="text" id="title" maxlength="120" required placeholder="예: 5주차 회고">
+          <div style="height:16px"></div>
+          <label for="body">내용</label>
+          <textarea id="body" placeholder="이번 주에 배운 것, 막혔던 것, 다음에 해볼 것을 적어보세요."></textarea>
+          <div class="row">
+            <button class="btn" type="submit" id="saveBtn">저장</button>
+            <span class="status" id="saveStatus" role="status"></span>
+            <span class="grow"></span>
+            <button class="btn danger" type="button" id="delBtn" hidden>삭제</button>
+          </div>
+          <div class="err" id="appErr" role="alert" hidden></div>
+        </form>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithPopup,GoogleAuthProvider,signOut} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getFirestore,collection,doc,addDoc,setDoc,deleteDoc,getDocs,query,orderBy,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+/* 웹 앱 설정값은 공개되어도 안전합니다. 접근 제한은 Firestore 보안 규칙이 담당합니다. */
+const app=initializeApp({
+  apiKey:"AIzaSyCA1UEqW171x6lhrRSUZWcZlMutrBL5_Qk",
+  authDomain:"myblog-test-54f1c.firebaseapp.com",
+  projectId:"myblog-test-54f1c",
+  appId:"1:949641109591:web:8272f81622a6bcbd514312"
+});
+const auth=getAuth(app), db=getFirestore(app), notes=collection(db,"notes");
+const $=id=>document.getElementById(id);
+const views=["loading","login","denied","app"];
+function show(v){views.forEach(x=>{$(x).hidden=x!==v})}
+
+let current=null; // 편집 중인 문서 id, 새 글이면 null
+let items=[];
+
+function setErr(el,msg){el.textContent=msg||"";el.hidden=!msg}
+function fmt(ts){
+  if(!ts||!ts.toDate)return "";
+  const d=ts.toDate();
+  return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0");
+}
+
+function renderList(){
+  const ul=$("list");ul.textContent="";
+  items.forEach(n=>{
+    const li=document.createElement("li"),b=document.createElement("button");
+    b.type="button";
+    if(n.id===current)b.setAttribute("aria-current","true");
+    const t=document.createElement("b");t.textContent=n.title||"(제목 없음)";
+    const s=document.createElement("small");s.textContent=fmt(n.createdAt);
+    b.appendChild(t);b.appendChild(s);
+    b.addEventListener("click",()=>open(n.id));
+    li.appendChild(b);ul.appendChild(li);
+  });
+  $("empty").hidden=items.length>0;
+}
+function open(id){
+  current=id;
+  const n=items.find(x=>x.id===id);
+  $("title").value=n?n.title:"";
+  $("body").value=n?n.body:"";
+  $("delBtn").hidden=!n;
+  $("delBtn").textContent="삭제";
+  $("saveStatus").textContent="";
+  setErr($("appErr"),"");
+  renderList();
+}
+async function load(){
+  const snap=await getDocs(query(notes,orderBy("createdAt","desc")));
+  items=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderList();
+}
+
+$("loginBtn").addEventListener("click",async()=>{
+  setErr($("loginErr"),"");
+  try{await signInWithPopup(auth,new GoogleAuthProvider())}
+  catch(e){
+    if(e.code==="auth/popup-closed-by-user"||e.code==="auth/cancelled-popup-request")return;
+    setErr($("loginErr"),"로그인하지 못했습니다. 팝업 차단을 풀고 다시 시도하세요.");
+  }
+});
+$("logout").addEventListener("click",()=>signOut(auth));
+$("newBtn").addEventListener("click",()=>open(null));
+
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const btn=$("saveBtn");btn.disabled=true;setErr($("appErr"),"");$("saveStatus").textContent="저장하는 중…";
+  const data={title:$("title").value.trim(),body:$("body").value,updatedAt:serverTimestamp()};
+  try{
+    if(current){await setDoc(doc(notes,current),data,{merge:true})}
+    else{const r=await addDoc(notes,{...data,createdAt:serverTimestamp(),uid:auth.currentUser.uid});current=r.id}
+    await load();open(current);
+    $("saveStatus").textContent="저장했습니다.";
+  }catch(err){
+    $("saveStatus").textContent="";
+    setErr($("appErr"),"저장하지 못했습니다. 잠시 뒤 다시 시도하세요.");
+  }
+  btn.disabled=false;
+});
+$("delBtn").addEventListener("click",async()=>{
+  const b=$("delBtn");
+  if(b.textContent!=="정말 삭제"){b.textContent="정말 삭제";return}
+  try{await deleteDoc(doc(notes,current));await load();open(null)}
+  catch(err){setErr($("appErr"),"삭제하지 못했습니다.")}
+});
+
+onAuthStateChanged(auth,async user=>{
+  if(!user){$("who").hidden=true;show("login");return}
+  $("who").hidden=false;$("whoName").textContent=user.displayName||"로그인됨";
+  try{await load();open(null);show("app")}
+  catch(err){
+    if(err&&err.code==="permission-denied")show("denied");
+    else{show("app");setErr($("appErr"),"노트를 불러오지 못했습니다. Firestore 설정을 확인하세요.")}
+  }
+});
+</script>
+</body>
+</html>

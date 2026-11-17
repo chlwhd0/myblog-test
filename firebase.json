@@ -4,5 +4,10 @@
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "cleanUrls": true
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-northeast3",
+    "rules": "firestore.rules"
   }
 }
