@@ -75,7 +75,7 @@
   </main>
 </div>
 <script type="module">
-import {boot,login,db,el,$} from "/common.js";
+import {boot,login,auth,db,el,$} from "/common.js";
 import {doc,getDoc,addDoc,setDoc,collection,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const id=new URLSearchParams(location.search).get("id");
@@ -143,6 +143,7 @@ $("form").addEventListener("submit",async e=>{
     metric:$("metric").value.trim(),unit:$("unit").value.trim(),
     tags,body:$("body").value,images,
     visibility:document.querySelector('input[name="vis"]:checked').value,
+    authorUid:auth.currentUser.uid,authorName:auth.currentUser.displayName||"글쓴이",
     updatedAt:serverTimestamp()
   };
   try{

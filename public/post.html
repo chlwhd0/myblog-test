@@ -46,7 +46,7 @@
       </div>
       <form id="cForm" autocomplete="off" hidden>
         <label for="cText">댓글 쓰기</label>
-        <textarea id="cText" maxlength="1000" required placeholder="남기고 싶은 말을 적어주세요."></textarea>
+        <div class="mwrap"><textarea id="cText" maxlength="1000" required placeholder="남기고 싶은 말을 적어주세요. @를 누르면 다른 사람을 부를 수 있습니다."></textarea></div>
         <div class="row"><button class="btn" type="submit" id="cSend">댓글 남기기</button><span class="status" id="cStatus" role="status"></span></div>
       </form>
       <div class="err" id="cErr" role="alert" hidden></div>
@@ -109,25 +109,149 @@ function drawLike(){
   $("likeLabel").textContent=liked?"좋아요 취소":"좋아요";
 }
 
+let people=new Map(); // uid → 이름. 이 글에 댓글을 단 사람과 글쓴이만 부를 수 있습니다.
+let openForm=null;
+
+function candidates(){
+  const out=[];
+  people.forEach((name,uid)=>{
+    if(ctx.user&&uid===ctx.user.uid)return;
+    out.push({uid,name,role:uid===post.authorUid?"글쓴이":""});
+  });
+  return out;
+}
+
+/* 본문 속 "@이름"을 강조해서 그립니다. 글자는 모두 텍스트로만 넣어 코드가 실행되지 않습니다. */
+function renderText(text,mentions){
+  const frag=document.createDocumentFragment();
+  const names=(mentions||[]).map(m=>m.name).filter(Boolean).sort((a,b)=>b.length-a.length);
+  if(!names.length){frag.appendChild(document.createTextNode(text));return frag}
+  const re=new RegExp("@("+names.map(n=>n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")+")","g");
+  let last=0,m;
+  while((m=re.exec(text))){
+    if(m.index>last)frag.appendChild(document.createTextNode(text.slice(last,m.index)));
+    frag.appendChild(el("span",{class:"mention",text:m[0]}));
+    last=m.index+m[0].length;
+  }
+  if(last<text.length)frag.appendChild(document.createTextNode(text.slice(last)));
+  return frag;
+}
+
+/* 입력칸에서 @를 치면 부를 수 있는 사람 목록을 보여줍니다. */
+function attachMention(ta){
+  const sel=new Map(),box=el("div",{class:"mbox",role:"listbox"});
+  box.hidden=true;ta.parentElement.appendChild(box);
+  let items=[],idx=0;
+  const close=()=>{box.hidden=true;items=[]};
+  function pick(p){
+    const before=ta.value.slice(0,ta.selectionStart),after=ta.value.slice(ta.selectionStart);
+    const m=before.match(/@([^\s@]*)$/);
+    if(!m){close();return}
+    const ins="@"+p.name+" ";
+    ta.value=before.slice(0,m.index)+ins+after;
+    const pos=m.index+ins.length;ta.setSelectionRange(pos,pos);
+    sel.set(p.uid,p);close();ta.focus();
+  }
+  function draw(){
+    box.textContent="";
+    items.forEach((p,i)=>{
+      const b=el("button",{type:"button",role:"option","aria-selected":i===idx?"true":"false"},p.name,p.role?el("small",{text:p.role}):null);
+      b.addEventListener("mousedown",e=>{e.preventDefault();pick(p)});
+      box.appendChild(b);
+    });
+    box.hidden=!items.length;
+  }
+  ta.addEventListener("input",()=>{
+    const m=ta.value.slice(0,ta.selectionStart).match(/@([^\s@]*)$/);
+    if(!m){close();return}
+    const q=m[1].toLowerCase();
+    items=candidates().filter(p=>p.name.toLowerCase().includes(q)).slice(0,6);idx=0;draw();
+  });
+  ta.addEventListener("keydown",e=>{
+    if(box.hidden||!items.length)return;
+    if(e.key==="ArrowDown"){e.preventDefault();idx=(idx+1)%items.length;draw()}
+    else if(e.key==="ArrowUp"){e.preventDefault();idx=(idx-1+items.length)%items.length;draw()}
+    else if(e.key==="Enter"||e.key==="Tab"){e.preventDefault();pick(items[idx])}
+    else if(e.key==="Escape"){close()}
+  });
+  ta.addEventListener("blur",()=>setTimeout(close,120));
+  return {
+    add(p){sel.set(p.uid,p)},
+    mentions(){return [...sel.values()].filter(p=>ta.value.includes("@"+p.name)).slice(0,5).map(p=>({uid:p.uid,name:p.name}))}
+  };
+}
+
+async function submitComment(text,parentId,mentions,btn){
+  text=text.trim();
+  if(!text||!ctx.user)return false;
+  btn.disabled=true;setErr("cErr","");
+  const data={uid:ctx.user.uid,name:ctx.user.displayName||"익명",text,createdAt:serverTimestamp()};
+  if(parentId)data.parentId=parentId;
+  if(mentions.length)data.mentions=mentions;
+  let ok=false;
+  try{await addDoc(collection(db,"posts",id,"comments"),data);await loadComments();ok=true}
+  catch(e){setErr("cErr","댓글을 남기지 못했습니다. 잠시 뒤 다시 시도하세요.")}
+  btn.disabled=false;
+  return ok;
+}
+
+function openReply(node,parentId,target){
+  if(openForm){openForm.remove();openForm=null}
+  const ta=el("textarea",{maxlength:"1000",required:"",placeholder:"답글을 적어주세요. @로 다른 사람을 부를 수 있습니다."});
+  const send=el("button",{type:"submit",class:"btn",text:"답글 남기기"});
+  const form=el("form",{class:"rform",autocomplete:"off"},el("div",{class:"mwrap"},ta),
+    el("div",{class:"row"},send,el("button",{type:"button",class:"btn ghost",text:"취소",onclick:()=>{form.remove();openForm=null}})));
+  const m=attachMention(ta);
+  if(target.parentId&&target.uid!==ctx.user.uid){ta.value="@"+target.name+" ";m.add({uid:target.uid,name:target.name})}
+  form.addEventListener("submit",async e=>{e.preventDefault();await submitComment(ta.value,parentId,m.mentions(),send)});
+  node.appendChild(form);openForm=form;ta.focus();
+  ta.setSelectionRange(ta.value.length,ta.value.length);
+}
+
+function commentNode(c,parentId,canReply){
+  const mine=!!ctx.user&&(c.mentions||[]).some(m=>m.uid===ctx.user.uid);
+  const head=el("div",{class:"head"},el("b",{text:c.name||"익명"}),
+    c.uid&&c.uid===post.authorUid?el("span",{class:"badge",text:"글쓴이"}):null,
+    el("span",{text:fmtDate(c.createdAt)}),
+    mine?el("span",{class:"callme",text:"나를 호출했어요"}):null);
+  if(ctx.user&&(ctx.owner||c.uid===ctx.user.uid)){
+    const del=el("button",{type:"button",class:"del",text:"삭제"});
+    del.addEventListener("click",async()=>{
+      if(del.textContent!=="정말 삭제"){del.textContent="정말 삭제";return}
+      try{await deleteDoc(doc(db,"posts",id,"comments",c.id));await loadComments()}
+      catch(e){setErr("cErr","댓글을 지우지 못했습니다.")}
+    });
+    head.appendChild(del);
+  }
+  const body=el("p");body.appendChild(renderText(c.text,c.mentions));
+  const node=el("div",{class:"comment"+(mine?" me":""),id:"c-"+c.id},head,body);
+  if(ctx.user&&canReply){
+    node.appendChild(el("div",{class:"tools"},el("button",{type:"button",text:"답글",onclick:()=>openReply(node,parentId||c.id,c)})));
+  }
+  return node;
+}
+
 async function loadComments(){
-  const box=$("cList");box.textContent="";
+  const box=$("cList");
   try{
     const snap=await getDocs(query(collection(db,"posts",id,"comments"),orderBy("createdAt","asc")));
-    $("cCount").textContent=snap.size;
-    if(!snap.size)box.appendChild(el("p",{class:"empty",text:"첫 댓글을 남겨보세요."}));
-    snap.docs.forEach(d=>{
-      const c=d.data();
-      const head=el("div",{class:"head"},el("b",{text:c.name||"익명"}),el("span",{text:fmtDate(c.createdAt)}));
-      if(ctx.user&&(ctx.owner||c.uid===ctx.user.uid)){
-        const del=el("button",{type:"button",class:"del",text:"삭제"});
-        del.addEventListener("click",async()=>{
-          if(del.textContent!=="정말 삭제"){del.textContent="정말 삭제";return}
-          try{await deleteDoc(doc(db,"posts",id,"comments",d.id));loadComments()}
-          catch(e){setErr("cErr","댓글을 지우지 못했습니다.")}
-        });
-        head.appendChild(del);
-      }
-      box.appendChild(el("div",{class:"comment"},head,el("p",{text:c.text})));
+    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    box.textContent="";openForm=null;
+    $("cCount").textContent=all.length;
+    people=new Map();
+    all.forEach(c=>{if(c.uid)people.set(c.uid,c.name||"익명")});
+    if(post.authorUid)people.set(post.authorUid,post.authorName||"글쓴이");
+    if(!all.length)box.appendChild(el("p",{class:"empty",text:"첫 댓글을 남겨보세요."}));
+    const tops=all.filter(c=>!c.parentId),topIds=new Set(tops.map(c=>c.id)),groups=new Map();
+    all.filter(c=>c.parentId).forEach(c=>{if(!groups.has(c.parentId))groups.set(c.parentId,[]);groups.get(c.parentId).push(c)});
+    const replies=(list,pid,canReply)=>el("div",{class:"replies"},list.map(r=>commentNode(r,pid,canReply)));
+    tops.forEach(c=>{
+      const kids=groups.get(c.id)||[];
+      box.appendChild(el("div",{class:"thread"},commentNode(c,c.id,true),kids.length?replies(kids,c.id,true):null));
+    });
+    groups.forEach((kids,pid)=>{ // 원래 댓글이 지워진 답글
+      if(topIds.has(pid))return;
+      box.appendChild(el("div",{class:"thread"},el("div",{class:"comment"},el("p",{class:"removed",text:"삭제된 댓글입니다."})),replies(kids,pid,false)));
     });
   }catch(e){setErr("cErr","댓글을 불러오지 못했습니다.")}
 }
@@ -142,16 +266,11 @@ $("likeBtn").addEventListener("click",async()=>{
 });
 $("loginBtn2").addEventListener("click",login);
 
+const mainMention=attachMention($("cText"));
 $("cForm").addEventListener("submit",async e=>{
   e.preventDefault();
-  const text=$("cText").value.trim();
-  if(!text||!ctx.user)return;
-  const b=$("cSend");b.disabled=true;setErr("cErr","");
-  try{
-    await addDoc(collection(db,"posts",id,"comments"),{uid:ctx.user.uid,name:ctx.user.displayName||"익명",text,createdAt:serverTimestamp()});
-    $("cText").value="";await loadComments();
-  }catch(err){setErr("cErr","댓글을 남기지 못했습니다. 잠시 뒤 다시 시도하세요.")}
-  b.disabled=false;
+  const ok=await submitComment($("cText").value,null,mainMention.mentions(),$("cSend"));
+  if(ok)$("cText").value="";
 });
 
 $("delBtn").addEventListener("click",async()=>{
