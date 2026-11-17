@@ -117,3 +117,20 @@ footer.foot{padding-block:8px 48px;color:var(--muted);font-size:13px}
 .mbox small{color:var(--muted);margin-left:6px}
 .rform{margin-top:10px}
 .rform textarea{min-height:80px}
+
+/* 알림 */
+.bellwrap{position:relative}
+.hnav .bell{position:relative;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0;background:var(--tile);color:var(--ink)}
+.bdot{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--hot);color:var(--hot-ink);font-size:11px;font-weight:700;line-height:18px;text-align:center}
+.npanel{position:absolute;right:0;top:100%;margin-top:8px;z-index:20;width:min(360px,calc(100vw - 32px));max-height:420px;overflow:auto;background:var(--tile);border:1px solid var(--line);border-radius:18px;box-shadow:0 20px 40px -16px rgba(0,0,0,.35);padding:8px}
+.nitem{display:block;padding:12px 14px;border-radius:12px;text-decoration:none;font-size:14px;line-height:1.5}
+.nitem:hover{background:var(--bg)}
+.nitem.new{background:color-mix(in srgb,var(--hot) 9%,transparent)}
+.nitem b{font-weight:700}
+.nitem span{color:var(--muted)}
+.nitem em{display:block;font-style:normal;margin-top:2px}
+.nitem small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.nempty{margin:0;padding:16px;color:var(--muted);font-size:14px}
+.comment.flash{animation:flash 2.4s ease-out}
+@keyframes flash{from{background:color-mix(in srgb,var(--hot) 25%,transparent)}to{background:transparent}}
+@media (prefers-reduced-motion:reduce){.comment.flash{animation:none;background:color-mix(in srgb,var(--hot) 14%,transparent)}}

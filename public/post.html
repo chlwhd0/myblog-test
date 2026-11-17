@@ -181,6 +181,18 @@ function attachMention(ta){
   };
 }
 
+let byId=new Map(); // 댓글 id → 댓글
+
+/* 알림 대상: 호출한 사람, 답글이면 원래 댓글 작성자, 글쓴이. 본인은 뺍니다. 우선순위는 호출 > 답글 > 댓글. */
+function notifyTargets(parentId,mentions){
+  const kinds={};
+  const add=(uid,kind)=>{if(uid&&uid!==ctx.user.uid&&!kinds[uid])kinds[uid]=kind};
+  mentions.forEach(m=>add(m.uid,"mention"));
+  if(parentId&&byId.get(parentId))add(byId.get(parentId).uid,"reply");
+  add(post.authorUid,"comment");
+  return kinds;
+}
+
 async function submitComment(text,parentId,mentions,btn){
   text=text.trim();
   if(!text||!ctx.user)return false;
@@ -188,6 +200,8 @@ async function submitComment(text,parentId,mentions,btn){
   const data={uid:ctx.user.uid,name:ctx.user.displayName||"익명",text,createdAt:serverTimestamp()};
   if(parentId)data.parentId=parentId;
   if(mentions.length)data.mentions=mentions;
+  const kinds=notifyTargets(parentId,mentions),notify=Object.keys(kinds).slice(0,8);
+  if(notify.length){data.notify=notify;data.kinds=kinds}
   let ok=false;
   try{await addDoc(collection(db,"posts",id,"comments"),data);await loadComments();ok=true}
   catch(e){setErr("cErr","댓글을 남기지 못했습니다. 잠시 뒤 다시 시도하세요.")}
@@ -236,6 +250,7 @@ async function loadComments(){
   try{
     const snap=await getDocs(query(collection(db,"posts",id,"comments"),orderBy("createdAt","asc")));
     const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    byId=new Map(all.map(c=>[c.id,c]));
     box.textContent="";openForm=null;
     $("cCount").textContent=all.length;
     people=new Map();
@@ -253,6 +268,8 @@ async function loadComments(){
       if(topIds.has(pid))return;
       box.appendChild(el("div",{class:"thread"},el("div",{class:"comment"},el("p",{class:"removed",text:"삭제된 댓글입니다."})),replies(kids,pid,false)));
     });
+    const target=location.hash.startsWith("#c-")?document.getElementById(location.hash.slice(1)):null;
+    if(target){target.scrollIntoView({block:"center"});target.classList.add("flash")}
   }catch(e){setErr("cErr","댓글을 불러오지 못했습니다.")}
 }
 
