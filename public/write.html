@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>글쓰기 - PM 작업실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top" id="hdr"></header>
+  <main>
+    <section class="tile" id="loading"><p class="sub" style="margin:0">확인하는 중입니다…</p></section>
+    <section class="tile" id="gate" hidden>
+      <h1>글쓰기</h1>
+      <p class="sub" id="gateMsg"></p>
+      <button class="btn hot" type="button" id="gateLogin" hidden>구글 로그인</button>
+    </section>
+
+    <section class="tile" id="editor" hidden>
+      <h1 id="heading">새 글 쓰기</h1>
+      <p class="sub">공개로 올린 글만 다른 방문자가 볼 수 있습니다.</p>
+      <form id="form" autocomplete="off">
+        <div class="field">
+          <label for="title">제목</label>
+          <input type="text" id="title" maxlength="120" required placeholder="예: 회의록 요약 서비스, 무엇부터 만들까">
+        </div>
+        <div class="field">
+          <label for="summary">한 줄 요약</label>
+          <input type="text" id="summary" maxlength="160" placeholder="목록과 첫 화면 카드에 보입니다.">
+        </div>
+        <div class="field two">
+          <div>
+            <label for="metric">핵심 수치 (선택)</label>
+            <input type="text" id="metric" maxlength="12" placeholder="예: −75%">
+          </div>
+          <div>
+            <label for="unit">수치 설명 (선택)</label>
+            <input type="text" id="unit" maxlength="20" placeholder="예: 정리 시간">
+          </div>
+        </div>
+        <div class="field">
+          <label for="tags">태그 (쉼표로 구분, 최대 5개)</label>
+          <input type="text" id="tags" maxlength="80" placeholder="예: 사용자 인터뷰, 기획">
+        </div>
+        <div class="field">
+          <label for="body">본문</label>
+          <textarea class="big" id="body" placeholder="문제, 접근, 결과 순서로 적어보세요."></textarea>
+        </div>
+        <div class="field">
+          <span class="lab">사진 (최대 4장)</span>
+          <input type="file" id="file" accept="image/*" multiple hidden>
+          <button class="btn ghost" type="button" id="addImg">사진 추가</button>
+          <div class="hint" id="imgHint">큰 사진은 올릴 때 자동으로 줄여서 저장합니다.</div>
+          <div class="thumbs" id="thumbs"></div>
+        </div>
+        <div class="field">
+          <span class="lab" id="visLab">공개 설정</span>
+          <div class="radios" role="radiogroup" aria-labelledby="visLab">
+            <label><input type="radio" name="vis" value="private" checked><span>비공개<small>나만 볼 수 있습니다.</small></span></label>
+            <label><input type="radio" name="vis" value="public"><span>공개<small>로그인 없이 누구나 볼 수 있고, 로그인한 사람은 댓글과 좋아요를 남길 수 있습니다.</small></span></label>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn hot" type="submit" id="save">저장</button>
+          <a class="btn ghost" href="/projects">취소</a>
+          <span class="status" id="saveStatus" role="status"></span>
+        </div>
+        <div class="err" id="err" role="alert" hidden></div>
+      </form>
+    </section>
+  </main>
+</div>
+<script type="module">
+import {boot,login,db,el,$} from "/common.js";
+import {doc,getDoc,addDoc,setDoc,collection,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const id=new URLSearchParams(location.search).get("id");
+const MAX_IMAGES=4, MAX_EACH=230000, MAX_TOTAL=880000; // 글 한 개가 1MB 안에 들어가도록 글자 수로 제한
+let images=[]; // 데이터 주소(data URL) 배열
+let ready=false;
+
+function setErr(msg){const e=$("err");e.textContent=msg||"";e.hidden=!msg}
+function show(v){["loading","gate","editor"].forEach(x=>{$(x).hidden=x!==v})}
+
+/* 사진을 가로 1280px 이하 JPEG로 줄이고, 한 장이 MAX_EACH 이하가 될 때까지 품질을 낮춥니다. */
+function shrink(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height,scale=Math.min(1,1280/Math.max(w,h)),q=0.82,out="";
+      for(let i=0;i<8;i++){
+        const c=document.createElement("canvas");
+        c.width=Math.round(w*scale);c.height=Math.round(h*scale);
+        const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);
+        out=c.toDataURL("image/jpeg",q);
+        if(out.length<=MAX_EACH)break;
+        if(q>0.5)q-=0.12;else scale*=0.8;
+      }
+      URL.revokeObjectURL(url);
+      out.length<=MAX_EACH?resolve(out):reject(new Error("too big"));
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("bad image"))};
+    img.src=url;
+  });
+}
+const total=()=>images.reduce((n,s)=>n+s.length,0);
+
+function drawThumbs(){
+  const t=$("thumbs");t.textContent="";
+  images.forEach((src,i)=>{
+    const b=el("button",{type:"button","aria-label":"사진 "+(i+1)+" 지우기",text:"×",onclick:()=>{images.splice(i,1);drawThumbs()}});
+    t.appendChild(el("div",{class:"thumb"},el("img",{src,alt:"첨부 사진 "+(i+1)}),b));
+  });
+  $("addImg").disabled=images.length>=MAX_IMAGES;
+  $("imgHint").textContent=images.length+"/"+MAX_IMAGES+"장 · 큰 사진은 올릴 때 자동으로 줄여서 저장합니다.";
+}
+
+$("addImg").addEventListener("click",()=>$("file").click());
+$("file").addEventListener("change",async e=>{
+  setErr("");
+  const files=[...e.target.files];e.target.value="";
+  for(const f of files){
+    if(images.length>=MAX_IMAGES){setErr("사진은 최대 "+MAX_IMAGES+"장까지 올릴 수 있습니다.");break}
+    if(!f.type.startsWith("image/")){setErr("이미지 파일만 올릴 수 있습니다.");continue}
+    try{
+      const s=await shrink(f);
+      if(total()+s.length>MAX_TOTAL){setErr("사진 용량이 너무 큽니다. 일부를 지우고 다시 올려주세요.");break}
+      images.push(s);drawThumbs();
+    }catch(err){setErr("사진을 처리하지 못했습니다: "+f.name)}
+  }
+});
+
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault();setErr("");
+  const btn=$("save");btn.disabled=true;$("saveStatus").textContent="저장하는 중…";
+  const tags=$("tags").value.split(",").map(s=>s.trim()).filter(Boolean).slice(0,5);
+  const data={
+    title:$("title").value.trim(),summary:$("summary").value.trim(),
+    metric:$("metric").value.trim(),unit:$("unit").value.trim(),
+    tags,body:$("body").value,images,
+    visibility:document.querySelector('input[name="vis"]:checked').value,
+    updatedAt:serverTimestamp()
+  };
+  try{
+    let pid=id;
+    if(id){await setDoc(doc(db,"posts",id),data,{merge:true})}
+    else{const r=await addDoc(collection(db,"posts"),{...data,createdAt:serverTimestamp()});pid=r.id}
+    location.href="/post?id="+encodeURIComponent(pid);
+  }catch(err){
+    $("saveStatus").textContent="";btn.disabled=false;
+    setErr("저장하지 못했습니다. 사진이 많다면 줄여서 다시 시도하세요.");
+  }
+});
+
+$("gateLogin").addEventListener("click",login);
+
+boot("projects",async s=>{
+  if(!s.user){
+    $("gateMsg").textContent="글은 블로그 주인만 쓸 수 있습니다. 로그인해 주세요.";
+    $("gateLogin").hidden=false;show("gate");return;
+  }
+  if(!s.owner){
+    $("gateMsg").textContent="이 계정은 글을 쓸 수 있는 계정이 아닙니다. 로그아웃한 뒤 다른 계정으로 로그인하세요.";
+    $("gateLogin").hidden=true;show("gate");return;
+  }
+  if(ready){show("editor");return}
+  if(id){
+    try{
+      const snap=await getDoc(doc(db,"posts",id));
+      if(!snap.exists()){$("gateMsg").textContent="수정할 글을 찾을 수 없습니다.";$("gateLogin").hidden=true;show("gate");return}
+      const p=snap.data();
+      $("heading").textContent="글 수정";
+      $("title").value=p.title||"";$("summary").value=p.summary||"";
+      $("metric").value=p.metric||"";$("unit").value=p.unit||"";
+      $("tags").value=(p.tags||[]).join(", ");$("body").value=p.body||"";
+      images=[...(p.images||[])];
+      document.querySelector('input[name="vis"][value="'+(p.visibility==="public"?"public":"private")+'"]').checked=true;
+    }catch(err){$("gateMsg").textContent="글을 불러오지 못했습니다.";$("gateLogin").hidden=true;show("gate");return}
+  }
+  drawThumbs();ready=true;show("editor");
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>프로젝트 - PM 작업실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top" id="hdr"></header>
+  <main>
+    <div class="page-head">
+      <h1>프로젝트</h1>
+      <a class="btn hot" id="writeBtn" href="/write" hidden>새 글 쓰기</a>
+    </div>
+    <section class="tile">
+      <ul class="board" id="board"></ul>
+      <p class="empty" id="empty" hidden></p>
+      <div class="pager" id="pager"></div>
+      <div class="err" id="err" role="alert" hidden></div>
+    </section>
+  </main>
+</div>
+<script type="module">
+import {boot,loadPosts,fmtDate,el,$} from "/common.js";
+const PER=10;
+let posts=[],page=1,owner=false;
+
+function draw(){
+  const ul=$("board");ul.textContent="";
+  const slice=posts.slice((page-1)*PER,page*PER);
+  slice.forEach(p=>{
+    const side=el("div",{class:"side"});
+    if(p.visibility==="private")side.appendChild(el("span",{class:"badge private",text:"비공개"}));
+    const tags=el("div",{class:"tags"},(p.tags||[]).slice(0,3).map(t=>el("span",{text:t})));
+    side.appendChild(tags);
+    ul.appendChild(el("li",{},el("a",{href:"/post?id="+encodeURIComponent(p.id)},
+      el("span",{class:"date",text:fmtDate(p.createdAt)}),
+      el("div",{},el("h2",{text:p.title||"(제목 없음)"}),p.summary?el("p",{text:p.summary}):null),
+      side)));
+  });
+  const pages=Math.ceil(posts.length/PER),pg=$("pager");pg.textContent="";
+  if(pages>1)for(let i=1;i<=pages;i++){
+    const b=el("button",{type:"button",text:String(i),onclick:()=>{page=i;draw();window.scrollTo(0,0)}});
+    if(i===page)b.setAttribute("aria-current","true");
+    pg.appendChild(b);
+  }
+}
+
+boot("projects",async s=>{
+  owner=s.owner;
+  $("writeBtn").hidden=!owner;
+  $("err").hidden=true;
+  try{
+    posts=await loadPosts(owner);
+    page=1;draw();
+    const e=$("empty");
+    e.hidden=posts.length>0;
+    e.textContent=owner?"아직 쓴 글이 없습니다. 오른쪽 위 \"새 글 쓰기\"로 첫 글을 올려보세요.":"아직 올라온 프로젝트가 없습니다.";
+  }catch(err){
+    $("err").textContent="글 목록을 불러오지 못했습니다. 잠시 뒤 다시 시도하세요.";$("err").hidden=false;
+  }
+});
+</script>
+</body>
+</html>

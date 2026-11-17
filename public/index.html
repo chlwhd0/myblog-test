@@ -16,6 +16,7 @@
 :root[data-theme="dark"]{
   --bg:#0A0A0C; --tile:#16161A; --ink:#F3F3F5; --muted:#9A9BA6; --line:#26262C;
   --dark:#1E1E24; color-scheme:dark}
+[hidden]{display:none!important}
 *{box-sizing:border-box}
 body{word-break:keep-all;overflow-wrap:break-word;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0}
@@ -54,6 +55,8 @@ h1 em{font-style:normal;color:var(--hot)}
 .more{font-size:13px;font-weight:500;padding:6px 14px;border-radius:999px;background:var(--tile);text-decoration:none;white-space:nowrap}
 .more:hover{background:var(--ink);color:var(--bg)}
 .cards{display:contents}
+.sum{margin:0 0 10px;font-size:15px;opacity:.75}
+.empty-tile{grid-column:span 12;color:var(--muted);min-height:0}
 .proj{grid-column:span 4;min-height:340px;justify-content:space-between;gap:32px}
 .proj.hot{background:var(--hot);color:var(--hot-ink)}
 .proj.hot .label,.proj.hot .tags span{color:inherit}
@@ -98,7 +101,7 @@ footer{padding-block:0 40px;font-size:13px;color:var(--muted)}
   <header>
     <a class="brand" href="#top"><i></i>PM 작업실</a>
     <nav class="hnav" aria-label="주 메뉴">
-      <a class="opt" href="#projects">프로젝트</a>
+      <a class="opt" href="/projects">프로젝트</a>
       <a class="lock" href="/notes">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
         내 노트
@@ -116,7 +119,7 @@ footer{padding-block:0 40px;font-size:13px;color:var(--muted)}
 
     <div class="sec" id="projects">
       <h2>최근 프로젝트</h2>
-      <a class="more" id="more" href="#board" hidden>더보기 <span aria-hidden="true">→</span></a>
+      <a class="more" id="more" href="/projects" hidden>더보기 <span aria-hidden="true">→</span></a>
     </div>
     <div class="cards" id="cards"></div>
 
@@ -137,33 +140,42 @@ footer{padding-block:0 40px;font-size:13px;color:var(--muted)}
   <footer>화면의 제목과 수치는 모두 예시입니다. 실제 내용으로 바꿔 쓰세요.</footer>
 </div>
 
-<script>
+<script type="module">
+import {db} from "/common.js";
+import {collection,query,where,getDocs} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
 document.getElementById('open').addEventListener('click',function(){location.href='/notes'});
 
-/* 프로젝트는 최신순 배열. 3개까지만 보여주고, 더 있으면 더보기 링크를 켠다. */
-var PROJECTS=[
-  {date:'2026.11 · 작성 중',metric:'3',unit:'가지 시안 비교',title:'AI 기능 온보딩 흐름 개선안',tags:['UX','가설 검증']},
-  {date:'2026.10',metric:'50',unit:'건 채점표',title:'고객 문의 챗봇의 평가 기준 설계',tags:['평가','프롬프트']},
-  {date:'2026.10',metric:'−75%',unit:'정리 시간',title:'회의록 요약 서비스, 무엇부터 만들까',tags:['사용자 인터뷰','기획']},
-  {date:'2026.09',metric:'12',unit:'개 질문 정리',title:'사용자 인터뷰 질문지 개선',tags:['리서치']}
-];
+/* 공개된 최신 글 3개를 보여주고, 더 있으면 더보기 링크를 켠다. */
 var MAX=3;
-var cards=document.getElementById('cards');
-PROJECTS.slice(0,MAX).forEach(function(p,i){
-  var a=document.createElement('a');
-  a.className='tile proj'+(i===0?' hot':'');
-  a.href='#projects';
-  var arrow=document.createElement('span');arrow.className='arrow';arrow.setAttribute('aria-hidden','true');arrow.textContent='↗';
-  var label=document.createElement('span');label.className='label';label.textContent=p.date;
-  var box=document.createElement('div');
-  var m=document.createElement('div');m.className='metric';m.textContent=p.metric;
-  var u=document.createElement('small');u.textContent=p.unit;m.appendChild(u);
-  var h=document.createElement('h2');h.textContent=p.title;
-  var t=document.createElement('div');t.className='tags';
-  p.tags.forEach(function(x){var s=document.createElement('span');s.textContent=x;t.appendChild(s)});
-  box.appendChild(m);box.appendChild(h);box.appendChild(t);
-  a.appendChild(arrow);a.appendChild(label);a.appendChild(box);
-  cards.appendChild(a);
-});
-document.getElementById('more').hidden=PROJECTS.length<=MAX;
+function fmt(ts){var d=ts&&ts.toDate?ts.toDate():null;return d?d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0'):''}
+function node(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+
+(async function(){
+  var cards=document.getElementById('cards');
+  var list=[];
+  try{
+    var snap=await getDocs(query(collection(db,'posts'),where('visibility','==','public')));
+    list=snap.docs.map(function(d){var x=d.data();x.id=d.id;return x});
+    list.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0)});
+  }catch(e){}
+  if(!list.length){
+    var t=node('div','tile empty-tile','아직 올라온 프로젝트가 없습니다.');
+    cards.appendChild(t);
+  }
+  list.slice(0,MAX).forEach(function(p,i){
+    var a=node('a','tile proj'+(i===0?' hot':''));
+    a.href='/post?id='+encodeURIComponent(p.id);
+    var arrow=node('span','arrow','↗');arrow.setAttribute('aria-hidden','true');
+    var box=node('div');
+    if(p.metric){var m=node('div','metric',p.metric);if(p.unit)m.appendChild(node('small',null,p.unit));box.appendChild(m)}
+    else if(p.summary){box.appendChild(node('p','sum',p.summary))}
+    box.appendChild(node('h2',null,p.title||'(제목 없음)'));
+    var tg=node('div','tags');(p.tags||[]).slice(0,3).forEach(function(x){tg.appendChild(node('span',null,x))});
+    box.appendChild(tg);
+    a.appendChild(arrow);a.appendChild(node('span','label',fmt(p.createdAt)));a.appendChild(box);
+    cards.appendChild(a);
+  });
+  document.getElementById('more').hidden=list.length<=MAX;
+})();
 </script>

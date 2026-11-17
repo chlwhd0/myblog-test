@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>프로젝트 글 - PM 작업실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top" id="hdr"></header>
+  <main>
+    <section class="tile" id="missing" hidden>
+      <h1>글을 볼 수 없습니다</h1>
+      <p class="sub">없는 글이거나 공개되지 않은 글입니다.</p>
+      <a class="btn ghost" href="/projects">프로젝트 목록으로</a>
+    </section>
+
+    <article class="tile article" id="article" hidden>
+      <div class="meta"><span id="date"></span><span class="badge private" id="priv" hidden>비공개</span></div>
+      <h1 id="title"></h1>
+      <div class="tags" id="tags"></div>
+      <p class="metric" id="metric" hidden></p>
+      <div class="prose" id="body"></div>
+      <div class="gallery" id="gallery"></div>
+      <div class="actions">
+        <button class="btn ghost like" type="button" id="likeBtn" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span id="likeLabel">좋아요</span> <span id="likeCount">0</span>
+        </button>
+        <span class="grow"></span>
+        <a class="btn ghost" id="editBtn" href="#" hidden>수정</a>
+        <button class="btn danger" type="button" id="delBtn" hidden>삭제</button>
+      </div>
+      <div class="err" id="actErr" role="alert" hidden></div>
+    </article>
+
+    <section class="tile comments" id="comments" hidden>
+      <h2>댓글 <span id="cCount">0</span></h2>
+      <div id="cList"></div>
+      <div class="loginbox" id="needLogin" hidden>
+        <span>댓글과 좋아요는 구글 로그인 후 사용할 수 있습니다.</span>
+        <button class="btn" type="button" id="loginBtn2">구글 로그인</button>
+      </div>
+      <form id="cForm" autocomplete="off" hidden>
+        <label for="cText">댓글 쓰기</label>
+        <textarea id="cText" maxlength="1000" required placeholder="남기고 싶은 말을 적어주세요."></textarea>
+        <div class="row"><button class="btn" type="submit" id="cSend">댓글 남기기</button><span class="status" id="cStatus" role="status"></span></div>
+      </form>
+      <div class="err" id="cErr" role="alert" hidden></div>
+    </section>
+  </main>
+</div>
+<script type="module">
+import {boot,login,db,fmtDate,el,$} from "/common.js";
+import {doc,getDoc,setDoc,deleteDoc,collection,getDocs,getCountFromServer,addDoc,query,orderBy,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const id=new URLSearchParams(location.search).get("id");
+let post=null,ctx={user:null,owner:false},likeCount=0,liked=false;
+let loaded=false;
+
+function setErr(id2,msg){const e=$(id2);e.textContent=msg||"";e.hidden=!msg}
+
+async function loadPost(){
+  if(!id)return null;
+  try{const s=await getDoc(doc(db,"posts",id));return s.exists()?{id:s.id,...s.data()}:null}
+  catch(e){return null}
+}
+
+function drawPost(){
+  document.title=(post.title||"프로젝트 글")+" - PM 작업실";
+  $("date").textContent=fmtDate(post.createdAt);
+  $("priv").hidden=post.visibility!=="private";
+  $("title").textContent=post.title||"(제목 없음)";
+  const t=$("tags");t.textContent="";(post.tags||[]).forEach(x=>t.appendChild(el("span",{text:x})));
+  const m=$("metric");
+  if(post.metric){m.textContent=post.metric+(post.unit?" "+post.unit:"");m.hidden=false}else m.hidden=true;
+  $("body").textContent=post.body||"";
+  const g=$("gallery");g.textContent="";
+  (post.images||[]).forEach((src,i)=>g.appendChild(el("img",{src,alt:(post.title||"")+" 사진 "+(i+1),loading:"lazy"})));
+  $("article").hidden=false;
+}
+
+function drawActions(){
+  $("editBtn").hidden=!ctx.owner;
+  $("editBtn").href="/write?id="+encodeURIComponent(id);
+  $("delBtn").hidden=!ctx.owner;
+  $("delBtn").textContent="삭제";
+  const pub=post.visibility==="public";
+  $("likeBtn").hidden=!pub;
+  $("comments").hidden=!pub;
+  $("needLogin").hidden=!!ctx.user;
+  $("cForm").hidden=!ctx.user;
+}
+
+async function loadLikes(){
+  try{
+    const col=collection(db,"posts",id,"likes");
+    likeCount=(await getCountFromServer(col)).data().count;
+    liked=ctx.user?(await getDoc(doc(col,ctx.user.uid))).exists():false;
+  }catch(e){likeCount=0;liked=false}
+  drawLike();
+}
+function drawLike(){
+  $("likeCount").textContent=likeCount;
+  $("likeBtn").setAttribute("aria-pressed",liked?"true":"false");
+  $("likeLabel").textContent=liked?"좋아요 취소":"좋아요";
+}
+
+async function loadComments(){
+  const box=$("cList");box.textContent="";
+  try{
+    const snap=await getDocs(query(collection(db,"posts",id,"comments"),orderBy("createdAt","asc")));
+    $("cCount").textContent=snap.size;
+    if(!snap.size)box.appendChild(el("p",{class:"empty",text:"첫 댓글을 남겨보세요."}));
+    snap.docs.forEach(d=>{
+      const c=d.data();
+      const head=el("div",{class:"head"},el("b",{text:c.name||"익명"}),el("span",{text:fmtDate(c.createdAt)}));
+      if(ctx.user&&(ctx.owner||c.uid===ctx.user.uid)){
+        const del=el("button",{type:"button",class:"del",text:"삭제"});
+        del.addEventListener("click",async()=>{
+          if(del.textContent!=="정말 삭제"){del.textContent="정말 삭제";return}
+          try{await deleteDoc(doc(db,"posts",id,"comments",d.id));loadComments()}
+          catch(e){setErr("cErr","댓글을 지우지 못했습니다.")}
+        });
+        head.appendChild(del);
+      }
+      box.appendChild(el("div",{class:"comment"},head,el("p",{text:c.text})));
+    });
+  }catch(e){setErr("cErr","댓글을 불러오지 못했습니다.")}
+}
+
+$("likeBtn").addEventListener("click",async()=>{
+  if(!ctx.user){login();return}
+  const ref=doc(db,"posts",id,"likes",ctx.user.uid);
+  const was=liked;
+  liked=!was;likeCount+=was?-1:1;drawLike();
+  try{if(was)await deleteDoc(ref);else await setDoc(ref,{createdAt:serverTimestamp()})}
+  catch(e){liked=was;likeCount+=was?1:-1;drawLike();setErr("actErr","좋아요를 처리하지 못했습니다.")}
+});
+$("loginBtn2").addEventListener("click",login);
+
+$("cForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const text=$("cText").value.trim();
+  if(!text||!ctx.user)return;
+  const b=$("cSend");b.disabled=true;setErr("cErr","");
+  try{
+    await addDoc(collection(db,"posts",id,"comments"),{uid:ctx.user.uid,name:ctx.user.displayName||"익명",text,createdAt:serverTimestamp()});
+    $("cText").value="";await loadComments();
+  }catch(err){setErr("cErr","댓글을 남기지 못했습니다. 잠시 뒤 다시 시도하세요.")}
+  b.disabled=false;
+});
+
+$("delBtn").addEventListener("click",async()=>{
+  const b=$("delBtn");
+  if(b.textContent!=="정말 삭제"){b.textContent="정말 삭제";return}
+  b.disabled=true;
+  try{
+    for(const sub of ["comments","likes"]){
+      const s=await getDocs(collection(db,"posts",id,sub));
+      await Promise.all(s.docs.map(d=>deleteDoc(d.ref)));
+    }
+    await deleteDoc(doc(db,"posts",id));
+    location.href="/projects";
+  }catch(e){b.disabled=false;setErr("actErr","글을 지우지 못했습니다.")}
+});
+
+boot("projects",async s=>{
+  ctx=s;
+  if(!loaded){
+    post=await loadPost();
+    if(!post){$("missing").hidden=false;return}
+    loaded=true;drawPost();
+  }
+  drawActions();
+  if(post.visibility==="public"){await Promise.all([loadLikes(),loadComments()])}
+});
+</script>
+</body>
+</html>
