@@ -1,11 +1,11 @@
 [hidden]{display:none!important}
 :root{
-  --bg:#F2F2F0; --tile:#FFFFFF; --ink:#101012; --muted:#6A6B73; --line:#E3E3E0;
-  --hot:#FF5B24; --hot-ink:#FFFFFF; --danger:#C62828; --ok:#1B7F4B;
+  --bg:#F0F0F0; --tile:#FFFFFF; --ink:#1C1C1C; --muted:#707070; --line:#E1E1E1;
+  --hot:#2A2A2A; --hot-ink:#FFFFFF; --danger:#1C1C1C; --ok:#1C1C1C;
   --font-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0A0A0C; --tile:#16161A; --ink:#F3F3F5; --muted:#9A9BA6; --line:#26262C; --danger:#FF8A80; --ok:#6FD6A0; color-scheme:dark}}
+  --bg:#101010; --tile:#1A1A1A; --ink:#EDEDED; --muted:#9C9C9C; --line:#2A2A2A; --hot:#E8E8E8; --hot-ink:#111111; --danger:#EDEDED; --ok:#EDEDED; color-scheme:dark}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;word-break:keep-all;overflow-wrap:break-word;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -32,7 +32,7 @@ p.sub{margin:0 0 24px;color:var(--muted)}
 .btn.danger{background:transparent;color:var(--danger);padding-inline:12px}
 .btn:disabled{opacity:.5;cursor:default}
 .btn:hover:not(:disabled){opacity:.88}
-.err{margin-top:16px;color:var(--danger);font-size:14px}
+.err{margin-top:16px;color:var(--danger);font-size:14px;font-weight:500;border-left:3px solid var(--danger);padding-left:10px}
 .status{font-size:13px;color:var(--muted)}
 .empty{color:var(--muted);padding:12px 0}
 
@@ -57,7 +57,7 @@ p.sub{margin:0 0 24px;color:var(--muted)}
 
 /* 글 보기 */
 .article .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:14px;margin-bottom:16px}
-.article .metric{font-weight:700;color:var(--hot);font-size:18px;margin:0 0 20px}
+.article .metric{font-weight:700;color:var(--ink);font-size:18px;margin:0 0 20px}
 .prose{white-space:pre-wrap;font-size:17px;line-height:1.85;margin:24px 0}
 .gallery{display:grid;gap:12px;margin:24px 0}
 .gallery img{display:block;width:100%;max-height:640px;object-fit:contain;border-radius:16px;background:var(--bg)}
@@ -107,7 +107,7 @@ footer.foot{padding-block:8px 48px;color:var(--muted);font-size:13px}
 .comment .tools{display:flex;gap:12px;margin-top:6px}
 .comment .tools button,.comment .del{font:inherit;font-size:12px;border:0;background:none;color:var(--muted);cursor:pointer;text-decoration:underline;padding:0}
 .comment .head .del{margin-left:auto}
-.mention{color:var(--hot);font-weight:700}
+.mention{color:var(--ink);font-weight:700;background:var(--bg);padding:0 .3em;border-radius:6px}
 .callme{font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--hot);color:var(--hot-ink)}
 .removed{color:var(--muted);font-size:14px;font-style:italic}
 .mwrap{position:relative}

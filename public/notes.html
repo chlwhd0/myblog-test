@@ -9,12 +9,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Space+Grotesk:wght@500;700&display=swap">
 <style>
 :root{
-  --bg:#F2F2F0; --tile:#FFFFFF; --ink:#101012; --muted:#6A6B73; --line:#E3E3E0;
-  --hot:#FF5B24; --hot-ink:#FFFFFF; --dark:#141417; --dark-ink:#F3F3F5; --danger:#C62828;
+  --bg:#F0F0F0; --tile:#FFFFFF; --ink:#1C1C1C; --muted:#707070; --line:#E1E1E1;
+  --hot:#2A2A2A; --hot-ink:#FFFFFF; --dark:#1C1C1C; --dark-ink:#F0F0F0; --danger:#1C1C1C;
   --font-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0A0A0C; --tile:#16161A; --ink:#F3F3F5; --muted:#9A9BA6; --line:#26262C; --dark:#1E1E24; --danger:#FF8A80; color-scheme:dark}}
+  --bg:#101010; --tile:#1A1A1A; --ink:#EDEDED; --muted:#9C9C9C; --line:#2A2A2A; --hot:#E8E8E8; --hot-ink:#111111; --dark:#262626; --danger:#EDEDED; color-scheme:dark}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;word-break:keep-all;overflow-wrap:break-word;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -34,7 +34,7 @@ p.sub{margin:0 0 24px;color:var(--muted)}
 .btn.danger{background:transparent;color:var(--danger);padding-inline:12px}
 .btn:disabled{opacity:.5;cursor:default}
 .btn:hover:not(:disabled){opacity:.88}
-.err{margin-top:16px;color:var(--danger);font-size:14px}
+.err{margin-top:16px;color:var(--danger);font-size:14px;font-weight:500;border-left:3px solid var(--danger);padding-left:10px}
 .layout{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:24px}
 .list{display:flex;flex-direction:column;gap:6px;margin:16px 0 0;padding:0;list-style:none}
 .list button{font:inherit;text-align:left;width:100%;padding:12px 14px;border:0;border-radius:14px;background:var(--bg);color:var(--ink);cursor:pointer}
